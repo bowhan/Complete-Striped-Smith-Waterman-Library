@@ -1,7 +1,7 @@
 project(sswlib LANGUAGES CXX C)
 
 # project paths
-set(ssw_RootDir     ${PROJECT_SOURCE_DIR})
+set(ssw_RootDir     ${CMAKE_CURRENT_SOURCE_DIR})
 set(ssw_SourceDir   ${ssw_RootDir}/src)
 
 if(NOT ssw_OutputDir)
