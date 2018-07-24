@@ -30,11 +30,12 @@
  *
  *  Created by Mengyao Zhao on 6/22/10.
  *  Copyright 2010 Boston College. All rights reserved.
- *	Version 1.2
- *	Last revision by Mengyao Zhao on 10/18/16.
+ *	Version 1.2.3
+ *	Last revision by Mengyao Zhao on 2017-06-26.
  *
  */
 
+//#include <nmmintrin.h>
 #include <emmintrin.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -83,6 +84,43 @@ struct _profile{
 	int32_t readLen;
 	int32_t n;
 	uint8_t bias;
+};
+
+/* array index is an ASCII character value from a CIGAR, 
+   element value is the corresponding integer opcode between 0 and 8 */
+const uint8_t encoded_ops[] = {
+	0,         0,         0,         0,
+	0,         0,         0,         0,
+	0,         0,         0,         0,
+	0,         0,         0,         0,
+	0,         0,         0,         0,
+	0,         0,         0,         0,
+	0,         0,         0,         0,
+	0,         0,         0,         0,
+	0 /*   */, 0 /* ! */, 0 /* " */, 0 /* # */,
+	0 /* $ */, 0 /* % */, 0 /* & */, 0 /* ' */,
+	0 /* ( */, 0 /* ) */, 0 /* * */, 0 /* + */,
+	0 /* , */, 0 /* - */, 0 /* . */, 0 /* / */,
+	0 /* 0 */, 0 /* 1 */, 0 /* 2 */, 0 /* 3 */,
+	0 /* 4 */, 0 /* 5 */, 0 /* 6 */, 0 /* 7 */,
+	0 /* 8 */, 0 /* 9 */, 0 /* : */, 0 /* ; */,
+	0 /* < */, 7 /* = */, 0 /* > */, 0 /* ? */,
+	0 /* @ */, 0 /* A */, 0 /* B */, 0 /* C */,
+	2 /* D */, 0 /* E */, 0 /* F */, 0 /* G */,
+	5 /* H */, 1 /* I */, 0 /* J */, 0 /* K */,
+	0 /* L */, 0 /* M */, 3 /* N */, 0 /* O */,
+	6 /* P */, 0 /* Q */, 0 /* R */, 4 /* S */,
+	0 /* T */, 0 /* U */, 0 /* V */, 0 /* W */,
+	8 /* X */, 0 /* Y */, 0 /* Z */, 0 /* [ */,
+	0 /* \ */, 0 /* ] */, 0 /* ^ */, 0 /* _ */,
+	0 /* ` */, 0 /* a */, 0 /* b */, 0 /* c */,
+	0 /* d */, 0 /* e */, 0 /* f */, 0 /* g */,
+	0 /* h */, 0 /* i */, 0 /* j */, 0 /* k */,
+	0 /* l */, 0 /* m */, 0 /* n */, 0 /* o */,
+	0 /* p */, 0 /* q */, 0 /* r */, 0 /* s */,
+	0 /* t */, 0 /* u */, 0 /* v */, 0 /* w */,
+	0 /* x */, 0 /* y */, 0 /* z */, 0 /* { */,
+	0 /* | */, 0 /* } */, 0 /* ~ */, 0 /*  */
 };
 
 /* Generate query profile rearrange query sequence & calculate the weight of match/mismatch. */
@@ -134,6 +172,7 @@ static alignment_end* sw_sse2_byte (const int8_t* ref,
 	 						 uint8_t bias,  /* Shift 0 point to a positive value. */
 							 int32_t maskLen) {
 
+// Put the largest number of the 16 numbers in vm into m.
 #define max16(m, vm) (vm) = _mm_max_epu8((vm), _mm_srli_si128((vm), 8)); \
 					  (vm) = _mm_max_epu8((vm), _mm_srli_si128((vm), 4)); \
 					  (vm) = _mm_max_epu8((vm), _mm_srli_si128((vm), 2)); \
@@ -529,37 +568,6 @@ end:
 	return bests;
 }
 
-/*!     @function               Produce CIGAR 32-bit unsigned integer from CIGAR operation and CIGAR length
-        @param  length          length of CIGAR
-        @param  op_letter       CIGAR operation character ('M', 'I', etc)
-        @return                 32-bit unsigned integer, representing encoded CIGAR operation and length
-*/
-uint32_t to_cigar_int (uint32_t length, char op_letter)
-{
-        switch (op_letter) {
-                case 'M': /* alignment match (can be a sequence match or mismatch */
-                default:
-                        return length << BAM_CIGAR_SHIFT;
-                case 'S': /* soft clipping (clipped sequences present in SEQ) */
-                        return (length << BAM_CIGAR_SHIFT) | (4u);
-                case 'D': /* deletion from the reference */
-                        return (length << BAM_CIGAR_SHIFT) | (2u);
-                case 'I': /* insertion to the reference */
-                        return (length << BAM_CIGAR_SHIFT) | (1u);
-                case 'H': /* hard clipping (clipped sequences NOT present in SEQ) */
-                        return (length << BAM_CIGAR_SHIFT) | (5u);
-                case 'N': /* skipped region from the reference */
-                        return (length << BAM_CIGAR_SHIFT) | (3u);
-                case 'P': /* padding (silent deletion from padded reference) */
-                        return (length << BAM_CIGAR_SHIFT) | (6u);
-                case '=': /* sequence match */
-                        return (length << BAM_CIGAR_SHIFT) | (7u);
-                case 'X': /* sequence mismatch */
-                        return (length << BAM_CIGAR_SHIFT) | (8u);
-        }
-        return (uint32_t)-1; // This never happens
-}
-
 static cigar* banded_sw (const int8_t* ref,
 				 const int8_t* read,
 				 int32_t refLen,
@@ -925,8 +933,8 @@ uint32_t* store_previous_m (int8_t choice,	// 0: current not M, 1: current match
 int32_t mark_mismatch (int32_t ref_begin1,
 					   int32_t read_begin1,
 					   int32_t read_end1,
-					   const char* ref,
-					   const char* read,
+					   const int8_t* ref,
+					   const int8_t* read,
 					   int32_t readLen,
 					   uint32_t** cigar,
 					   int32_t* cigarLen) {
@@ -945,7 +953,6 @@ int32_t mark_mismatch (int32_t ref_begin1,
 			for (j = 0; j < length; ++j) {
 				if (*ref != *read) {
 					++ mismatch_length;
-				//	fprintf(stderr, "length_m: %d\n", length_m);
 					// the previous is match; however the current one is mismatche
 					new_cigar = store_previous_m (2, &length_m, &length_x, &p, &s, new_cigar);			
 					++ length_x;
