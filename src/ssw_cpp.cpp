@@ -459,6 +459,15 @@ bool Aligner::ReBuild(
   return true;
 }
 
+bool Aligner::RebuildScoreMatrix(const int8_t* score_matrix, const int& score_matrix_size) {
+  ClearMatrices();
+  score_matrix_ = new int8_t[score_matrix_size_ * score_matrix_size_];
+  memcpy(score_matrix_, score_matrix, sizeof(int8_t) * score_matrix_size_ * score_matrix_size_);
+  translation_matrix_ = new int8_t[SizeOfArray(kBaseTranslation)];
+  memcpy(translation_matrix_, kBaseTranslation, sizeof(int8_t) * SizeOfArray(kBaseTranslation));
+  return true;
+}
+
 void Aligner::BuildDefaultMatrix(void) {
   ClearMatrices();
   score_matrix_ = new int8_t[score_matrix_size_ * score_matrix_size_];

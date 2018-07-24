@@ -189,6 +189,9 @@ class Aligner {
           const int8_t* translation_matrix,
 	  const int&    translation_matrix_size);
 
+
+  bool RebuildScoreMatrix(const int8_t* score_matrix, const int& score_matrix_size);
+
  private:
   int8_t* score_matrix_;
   int     score_matrix_size_;
